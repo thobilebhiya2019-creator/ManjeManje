@@ -479,11 +479,12 @@ function renderCart() {
 
 function fillCheckoutFromUser(user) {
   if (!user) return;
+  const address = visibleDeliveryAddress(user.address, user.gps);
   checkoutForm.elements.customerName.value = user.name || "";
   checkoutForm.elements.phone.value = user.phone || "";
-  checkoutForm.elements.address.value = user.address || "";
+  checkoutForm.elements.address.value = address;
   gpsInput.value = user.gps || "";
-  document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(user.address || user.gps || "Ermelo CBD")}`;
+  document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(address || "Ermelo CBD")}`;
   addressInput.dispatchEvent(new Event("input"));
 }
 
@@ -491,20 +492,83 @@ function shortAddress(value) {
   return value.length > 34 ? `${value.slice(0, 31)}...` : value;
 }
 
+function visibleDeliveryAddress(address, gps = "") {
+  const value = (address || "").trim();
+  if (/^(my gps location|gps location near ermelo):\s*-?\d/i.test(value)) {
+    return fallbackPinnedAddress();
+  }
+  if (!value && gps) {
+    return fallbackPinnedAddress();
+  }
+  return value;
+}
+
+async function fetchJsonWithTimeout(url, timeout = 4500) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function addressFromPhotonFeature(feature) {
+  const props = feature?.properties || {};
+  const pieces = [
+    props.housenumber && props.street ? `${props.housenumber} ${props.street}` : props.street || props.name,
+    props.district,
+    props.city,
+    props.county,
+    props.state,
+    props.postcode,
+    props.country,
+  ].filter(Boolean);
+  return [...new Set(pieces)].join(", ");
+}
+
+function addressFromBigDataCloud(data) {
+  const pieces = [
+    data.road,
+    data.locality || data.city,
+    data.principalSubdivision,
+    data.postcode,
+    data.countryName,
+  ].filter(Boolean);
+  return [...new Set(pieces)].join(", ");
+}
+
 async function reverseGeocode(latitude, longitude) {
-  const params = new URLSearchParams({
-    format: "jsonv2",
+  const photonParams = new URLSearchParams({
     lat: latitude,
     lon: longitude,
+    lang: "en",
   });
-  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
-    headers: { Accept: "application/json" },
+  const bigDataParams = new URLSearchParams({
+    latitude,
+    longitude,
+    localityLanguage: "en",
   });
-  if (!response.ok) {
-    throw new Error("Address lookup failed");
-  }
-  const data = await response.json();
-  return data.display_name || "";
+
+  const [photonData, bigDataCloudData] = await Promise.all([
+    fetchJsonWithTimeout(`https://photon.komoot.io/reverse?${photonParams.toString()}`),
+    fetchJsonWithTimeout(`https://api.bigdatacloud.net/data/reverse-geocode-client?${bigDataParams.toString()}`),
+  ]);
+
+  const photonAddress = addressFromPhotonFeature(photonData?.features?.[0]);
+  const bigDataAddress = addressFromBigDataCloud(bigDataCloudData || {});
+  return photonAddress || bigDataAddress || "";
+}
+
+function fallbackPinnedAddress() {
+  return "Pinned location near Ermelo, Mpumalanga";
 }
 
 async function searchAddresses(query) {
@@ -678,11 +742,12 @@ function renderAccount() {
     accountSubtitle.textContent = "Your details are saved for faster checkout on this device.";
     accountForm.elements.name.value = user.name || "";
     accountForm.elements.phone.value = user.phone || "";
-    accountForm.elements.address.value = user.address || "";
+    const address = visibleDeliveryAddress(user.address, user.gps);
+    accountForm.elements.address.value = address;
     accountForm.elements.password.value = "";
-    accountAddressInput.value = user.address || "";
+    accountAddressInput.value = address;
     accountGpsInput.value = user.gps || "";
-    updateAccountMap(user.gps || user.address || "Ermelo Mpumalanga");
+    updateAccountMap(user.gps || address || "Ermelo Mpumalanga");
     accountAddressPanel.classList.remove("hidden");
     logoutButton.classList.remove("hidden");
     fillCheckoutFromUser(user);
@@ -1177,6 +1242,9 @@ accountGpsButton.addEventListener("click", () => {
     async (position) => {
       const { latitude, longitude } = position.coords;
       const coords = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+      accountAddressInput.value = "Finding nearest street address...";
+      addressInput.value = "Finding nearest street address...";
+      document.querySelector("#deliveryArea").textContent = "Delivering to current location";
       let label = "";
       try {
         label = await reverseGeocode(latitude, longitude);
@@ -1184,7 +1252,7 @@ accountGpsButton.addEventListener("click", () => {
         label = "";
       }
       if (!label) {
-        label = `GPS location near Ermelo: ${coords}`;
+        label = fallbackPinnedAddress();
       }
       accountGpsInput.value = coords;
       accountAddressInput.value = label;
@@ -1214,10 +1282,11 @@ saveAddressButton.addEventListener("click", () => {
     addressStatus.textContent = "Add an address or use My Location before saving.";
     return;
   }
+  const savedAddress = visibleDeliveryAddress(address, gps) || fallbackPinnedAddress();
 
   state.currentUser = {
     ...state.currentUser,
-    address: address || state.currentUser.address,
+    address: savedAddress,
     gps: gps || state.currentUser.gps || "",
   };
   state.users = state.users.map((user) => (user.id === state.currentUser.id ? state.currentUser : user));
@@ -1270,6 +1339,8 @@ useGpsButton.addEventListener("click", () => {
     async (position) => {
       const { latitude, longitude } = position.coords;
       const coords = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+      addressInput.value = "Finding nearest street address...";
+      document.querySelector("#deliveryArea").textContent = "Delivering to current location";
       let label = "";
       try {
         label = await reverseGeocode(latitude, longitude);
@@ -1277,7 +1348,7 @@ useGpsButton.addEventListener("click", () => {
         label = "";
       }
       if (!label) {
-        label = `GPS location near Ermelo: ${coords}`;
+        label = fallbackPinnedAddress();
       }
       gpsInput.value = coords;
       addressInput.value = label;
