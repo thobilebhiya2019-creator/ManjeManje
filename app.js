@@ -213,6 +213,8 @@ const accountMapFrame = document.querySelector("#accountMapFrame");
 const accountNavigateLink = document.querySelector("#accountNavigateLink");
 const saveAddressButton = document.querySelector("#saveAddressButton");
 const addressStatus = document.querySelector("#addressStatus");
+const accountAddressSuggestions = document.querySelector("#accountAddressSuggestions");
+const checkoutAddressSuggestions = document.querySelector("#checkoutAddressSuggestions");
 const otpPanel = document.querySelector("#otpPanel");
 const otpInput = document.querySelector("#otpInput");
 const otpHelp = document.querySelector("#otpHelp");
@@ -487,6 +489,89 @@ function fillCheckoutFromUser(user) {
 
 function shortAddress(value) {
   return value.length > 34 ? `${value.slice(0, 31)}...` : value;
+}
+
+async function reverseGeocode(latitude, longitude) {
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    lat: latitude,
+    lon: longitude,
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error("Address lookup failed");
+  }
+  const data = await response.json();
+  return data.display_name || "";
+}
+
+async function searchAddresses(query) {
+  const trimmed = query.trim();
+  if (trimmed.length < 3) return [];
+
+  const searchText = /ermelo|mpumalanga/i.test(trimmed) ? trimmed : `${trimmed}, Ermelo, Mpumalanga`;
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    q: searchText,
+    countrycodes: "za",
+    addressdetails: "1",
+    limit: "6",
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return [];
+  return response.json();
+}
+
+function hideAddressSuggestions(list) {
+  list.classList.add("hidden");
+  list.innerHTML = "";
+}
+
+function renderAddressSuggestions(list, results, onSelect) {
+  list.innerHTML = "";
+  if (!results.length) {
+    hideAddressSuggestions(list);
+    return;
+  }
+
+  results.forEach((place) => {
+    const button = document.createElement("button");
+    const address = place.display_name;
+    button.type = "button";
+    button.setAttribute("role", "option");
+    button.innerHTML = `<span>${address}</span><small>${Number(place.lat).toFixed(5)}, ${Number(place.lon).toFixed(5)}</small>`;
+    button.addEventListener("click", () => {
+      onSelect(address, `${Number(place.lat).toFixed(6)},${Number(place.lon).toFixed(6)}`);
+      hideAddressSuggestions(list);
+    });
+    list.appendChild(button);
+  });
+
+  list.classList.remove("hidden");
+}
+
+function setupAddressAutocomplete(input, list, onSelect, onTyping) {
+  let timer;
+  let lastRequest = 0;
+  input.addEventListener("input", () => {
+    onTyping?.();
+    clearTimeout(timer);
+    const requestId = Date.now();
+    lastRequest = requestId;
+    timer = setTimeout(async () => {
+      const results = await searchAddresses(input.value).catch(() => []);
+      if (lastRequest !== requestId) return;
+      renderAddressSuggestions(list, results, onSelect);
+    }, 350);
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => hideAddressSuggestions(list), 180);
+  });
 }
 
 function updateAccountMap(query) {
@@ -977,10 +1062,25 @@ logoutButton.addEventListener("click", () => {
   renderAccount();
 });
 
-accountAddressInput.addEventListener("input", () => {
-  const query = `${accountAddressInput.value} Ermelo Mpumalanga`;
-  updateAccountMap(query);
-});
+setupAddressAutocomplete(
+  accountAddressInput,
+  accountAddressSuggestions,
+  (address, coords) => {
+    accountAddressInput.value = address;
+    accountGpsInput.value = coords;
+    addressInput.value = address;
+    gpsInput.value = coords;
+    document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(address)}`;
+    updateAccountMap(coords);
+    updateCheckoutMapSearch();
+    addressStatus.textContent = "Address selected. Save it to your profile.";
+  },
+  () => {
+    accountGpsInput.value = "";
+    const query = `${accountAddressInput.value} Ermelo Mpumalanga`;
+    updateAccountMap(query);
+  },
+);
 
 accountGpsButton.addEventListener("click", () => {
   if (!navigator.geolocation) {
@@ -990,10 +1090,18 @@ accountGpsButton.addEventListener("click", () => {
 
   addressStatus.textContent = "Getting your location...";
   navigator.geolocation.getCurrentPosition(
-    (position) => {
+    async (position) => {
       const { latitude, longitude } = position.coords;
       const coords = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
-      const label = `My GPS location: ${coords}`;
+      let label = "";
+      try {
+        label = await reverseGeocode(latitude, longitude);
+      } catch (error) {
+        label = "";
+      }
+      if (!label) {
+        label = `GPS location near Ermelo: ${coords}`;
+      }
       accountGpsInput.value = coords;
       accountAddressInput.value = label;
       addressInput.value = label;
@@ -1001,7 +1109,7 @@ accountGpsButton.addEventListener("click", () => {
       document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(label)}`;
       updateAccountMap(coords);
       updateCheckoutMapSearch();
-      addressStatus.textContent = "Location added. Save it to your profile.";
+      addressStatus.textContent = "Location address added. Save it to your profile.";
     },
     () => {
       addressStatus.textContent = "GPS permission was not allowed. Search your address instead.";
@@ -1047,9 +1155,25 @@ saveAddressButton.addEventListener("click", () => {
   });
 });
 
-addressInput.addEventListener("input", () => {
-  updateCheckoutMapSearch();
-});
+setupAddressAutocomplete(
+  addressInput,
+  checkoutAddressSuggestions,
+  (address, coords) => {
+    addressInput.value = address;
+    gpsInput.value = coords;
+    if (state.currentUser) {
+      accountAddressInput.value = address;
+      accountGpsInput.value = coords;
+    }
+    document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(address)}`;
+    mapSearchLink.href = mapsDirectionsUrl(coords);
+    gpsStatus.textContent = "Address selected from search.";
+  },
+  () => {
+    gpsInput.value = "";
+    updateCheckoutMapSearch();
+  },
+);
 
 useGpsButton.addEventListener("click", () => {
   if (!navigator.geolocation) {
@@ -1059,10 +1183,18 @@ useGpsButton.addEventListener("click", () => {
 
   gpsStatus.textContent = "Getting your GPS location...";
   navigator.geolocation.getCurrentPosition(
-    (position) => {
+    async (position) => {
       const { latitude, longitude } = position.coords;
       const coords = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
-      const label = `My GPS location: ${coords}`;
+      let label = "";
+      try {
+        label = await reverseGeocode(latitude, longitude);
+      } catch (error) {
+        label = "";
+      }
+      if (!label) {
+        label = `GPS location near Ermelo: ${coords}`;
+      }
       gpsInput.value = coords;
       addressInput.value = label;
       document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(label)}`;

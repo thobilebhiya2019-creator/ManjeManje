@@ -123,6 +123,7 @@
             <label>
               Search home or work address
               <input id="accountAddressInput" type="search" placeholder="Search address in Ermelo" />
+              <div class="address-suggestions hidden" id="accountAddressSuggestions" role="listbox"></div>
             </label>
             <input id="accountGpsInput" type="hidden" />
             <div class="address-tools">
@@ -196,6 +197,7 @@
           <label>
             Delivery address
             <input required name="address" id="addressInput" type="text" placeholder="Street address, area or landmark" />
+            <div class="address-suggestions hidden" id="checkoutAddressSuggestions" role="listbox"></div>
           </label>
           <input name="gps" id="gpsInput" type="hidden" />
           <div class="address-tools">
