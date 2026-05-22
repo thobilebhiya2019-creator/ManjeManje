@@ -481,7 +481,12 @@ function fillCheckoutFromUser(user) {
   checkoutForm.elements.phone.value = user.phone || "";
   checkoutForm.elements.address.value = user.address || "";
   gpsInput.value = user.gps || "";
+  document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(user.address || user.gps || "Ermelo CBD")}`;
   addressInput.dispatchEvent(new Event("input"));
+}
+
+function shortAddress(value) {
+  return value.length > 34 ? `${value.slice(0, 31)}...` : value;
 }
 
 function updateAccountMap(query) {
@@ -988,9 +993,14 @@ accountGpsButton.addEventListener("click", () => {
     (position) => {
       const { latitude, longitude } = position.coords;
       const coords = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+      const label = `My GPS location: ${coords}`;
       accountGpsInput.value = coords;
-      accountAddressInput.value = accountAddressInput.value || `My Location: ${coords}`;
+      accountAddressInput.value = label;
+      addressInput.value = label;
+      gpsInput.value = coords;
+      document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(label)}`;
       updateAccountMap(coords);
+      updateCheckoutMapSearch();
       addressStatus.textContent = "Location added. Save it to your profile.";
     },
     () => {
@@ -1052,8 +1062,10 @@ useGpsButton.addEventListener("click", () => {
     (position) => {
       const { latitude, longitude } = position.coords;
       const coords = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+      const label = `My GPS location: ${coords}`;
       gpsInput.value = coords;
-      addressInput.value = addressInput.value || `GPS location near Ermelo: ${coords}`;
+      addressInput.value = label;
+      document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(label)}`;
       mapSearchLink.href = mapsDirectionsUrl(coords);
       gpsStatus.innerHTML = `GPS added. <a href="${mapsDirectionsUrl(coords)}" target="_blank" rel="noreferrer">Open location in Maps</a>.`;
     },

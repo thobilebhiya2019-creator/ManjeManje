@@ -554,6 +554,9 @@ button {
   align-self: start;
   display: grid;
   gap: 18px;
+  max-height: calc(100vh - 118px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 20px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -932,6 +935,8 @@ button {
 
   .cart-panel {
     position: static;
+    max-height: none;
+    overflow: visible;
   }
 }
 
