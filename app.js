@@ -125,6 +125,7 @@ const areas = ["Ermelo CBD", "Wesselton", "Cassim Park", "Ext 32", "Nyibe", "AJ 
 const ownerWhatsAppNumber = "27798635027";
 const apiBase = location.protocol === "file:" ? "http://127.0.0.1:8787" : "";
 const otpRequired = false;
+const staffPin = "2468";
 const ordersKey = "manjemanje-orders";
 const usersKey = "manjemanje-users";
 const sessionKey = "manjemanje-session";
@@ -1095,10 +1096,24 @@ checkoutForm.addEventListener("submit", (event) => {
   renderOrders();
 });
 
-document.querySelector("#adminToggle").addEventListener("click", () => {
-  adminPanel.classList.toggle("hidden");
-  if (!adminPanel.classList.contains("hidden")) {
-    adminPanel.scrollIntoView({ behavior: "smooth" });
+function openStaffDashboard() {
+  const enteredPin = prompt("Enter staff PIN");
+  if (enteredPin !== staffPin) {
+    alert("Incorrect staff PIN.");
+    return;
+  }
+  adminPanel.classList.remove("hidden");
+  adminPanel.scrollIntoView({ behavior: "smooth" });
+}
+
+let staffShortcut = "";
+document.addEventListener("keydown", (event) => {
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.target.matches("input, textarea, select")) return;
+  staffShortcut = `${staffShortcut}${event.key.toLowerCase()}`.slice(-5);
+  if (staffShortcut === "staff") {
+    staffShortcut = "";
+    openStaffDashboard();
   }
 });
 
