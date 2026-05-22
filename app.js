@@ -509,9 +509,14 @@ async function reverseGeocode(latitude, longitude) {
 
 async function searchAddresses(query) {
   const trimmed = query.trim();
-  if (trimmed.length < 3) return [];
+  if (trimmed.length < 2) return [];
 
   const searchText = /ermelo|mpumalanga/i.test(trimmed) ? trimmed : `${trimmed}, Ermelo, Mpumalanga`;
+  const fastResults = await searchFastAddresses(searchText);
+  if (fastResults.length) {
+    return fastResults;
+  }
+
   const params = new URLSearchParams({
     format: "jsonv2",
     q: searchText,
@@ -524,6 +529,43 @@ async function searchAddresses(query) {
   });
   if (!response.ok) return [];
   return response.json();
+}
+
+async function searchFastAddresses(searchText) {
+  const params = new URLSearchParams({
+    q: searchText,
+    lat: "-26.5333",
+    lon: "29.9833",
+    limit: "7",
+    lang: "en",
+  });
+  const response = await fetch(`https://photon.komoot.io/api/?${params.toString()}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return [];
+  const data = await response.json();
+  return (data.features || [])
+    .filter((feature) => feature.geometry?.coordinates?.length >= 2)
+    .map((feature) => {
+      const [lon, lat] = feature.geometry.coordinates;
+      const props = feature.properties || {};
+      const pieces = [
+        props.name,
+        props.street,
+        props.district,
+        props.city,
+        props.county,
+        props.state,
+        props.postcode,
+        props.country,
+      ].filter(Boolean);
+      return {
+        display_name: [...new Set(pieces)].join(", "),
+        lat,
+        lon,
+      };
+    })
+    .filter((place) => place.display_name);
 }
 
 function hideAddressSuggestions(list) {
@@ -546,12 +588,12 @@ function keepTypedStreetNumber(typedValue, selectedAddress) {
 function renderAddressSuggestions(input, list, results, onSelect) {
   list.innerHTML = "";
   const typedAddress = input.value.trim();
-  if (!results.length && typedAddress.length < 3) {
+  if (!results.length && typedAddress.length < 2) {
     hideAddressSuggestions(list);
     return;
   }
 
-  if (typedAddress.length >= 3) {
+  if (typedAddress.length >= 2) {
     const typedButton = document.createElement("button");
     typedButton.type = "button";
     typedButton.setAttribute("role", "option");
@@ -581,6 +623,16 @@ function renderAddressSuggestions(input, list, results, onSelect) {
   }
 }
 
+function renderAddressSearchLoading(input, list, onSelect) {
+  renderAddressSuggestions(input, list, [], onSelect);
+  const searching = document.createElement("button");
+  searching.type = "button";
+  searching.disabled = true;
+  searching.innerHTML = "<span>Searching nearby addresses...</span><small>Ermelo and surrounding areas</small>";
+  list.appendChild(searching);
+  list.classList.remove("hidden");
+}
+
 function setupAddressAutocomplete(input, list, onSelect, onTyping) {
   let timer;
   let lastRequest = 0;
@@ -589,11 +641,16 @@ function setupAddressAutocomplete(input, list, onSelect, onTyping) {
     clearTimeout(timer);
     const requestId = Date.now();
     lastRequest = requestId;
+    if (input.value.trim().length >= 2) {
+      renderAddressSearchLoading(input, list, onSelect);
+    } else {
+      hideAddressSuggestions(list);
+    }
     timer = setTimeout(async () => {
       const results = await searchAddresses(input.value).catch(() => []);
       if (lastRequest !== requestId) return;
       renderAddressSuggestions(input, list, results, onSelect);
-    }, 350);
+    }, 150);
   });
 
   input.addEventListener("blur", () => {
