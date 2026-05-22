@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ManjeManje</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="ManjeManje home">
+        <span class="brand-mark">MM</span>
+        <span>ManjeManje</span>
+      </a>
+
+      <label class="search-wrap" for="searchInput">
+        <span aria-hidden="true">Search</span>
+        <input id="searchInput" type="search" placeholder="Food, groceries, pharmacy, rides" autocomplete="off" />
+      </label>
+
+      <button class="location-button" type="button" id="locationButton">
+        <span aria-hidden="true">Pin</span>
+        <span id="deliveryArea">Delivering to Ermelo CBD</span>
+      </button>
+
+      <button class="admin-button" type="button" id="adminToggle">Admin</button>
+
+      <a class="admin-button account-button" href="#accountPanel" id="accountToggle">Account</a>
+
+      <a
+        class="admin-button contact-button"
+        id="helloLink"
+        href="https://wa.me/27798635027?text=Hi%20Siyabonga%2C%20I%20am%20interested%20in%20ManjeManje."
+        target="_blank"
+        rel="noreferrer"
+      >
+        Say hi
+      </a>
+    </header>
+
+    <main class="app-shell">
+      <section class="content">
+        <section class="hero" aria-label="Featured delivery offer">
+          <div>
+            <p class="eyebrow">Ermelo, manje manje</p>
+            <h1>Food, essentials and local help for Ermelo people.</h1>
+            <p class="hero-copy">
+              Order from township kitchens, town shops, pharmacies, parcel runners and taxis in one simple local app.
+            </p>
+            <div class="hero-actions">
+              <button class="primary-button" type="button" id="startOrderButton">Browse Ermelo</button>
+              <span>Ermelo CBD, Wesselton, Cassim Park, Ext 32</span>
+            </div>
+          </div>
+          <div class="hero-plate" aria-hidden="true">
+            <div class="plate">
+              <span class="food food-one"></span>
+              <span class="food food-two"></span>
+              <span class="food food-three"></span>
+              <span class="food food-four"></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="account-panel" id="accountPanel" aria-label="Customer account">
+          <div class="account-copy">
+            <p class="eyebrow">Customer account</p>
+            <h2 id="accountTitle">Create your ManjeManje account</h2>
+            <p id="accountSubtitle">Sign up first, then use your WhatsApp number and password to sign in later.</p>
+          </div>
+
+          <form class="account-form" id="accountForm">
+            <label>
+              Full name
+              <input name="name" type="text" placeholder="Your name" />
+            </label>
+            <label>
+              WhatsApp number
+              <input required name="phone" type="tel" placeholder="e.g. 079 863 5027" />
+            </label>
+            <label>
+              Password
+              <input required name="password" type="password" placeholder="Create or enter password" />
+            </label>
+            <label>
+              Saved address
+              <input name="address" type="text" placeholder="Home or work address" />
+            </label>
+            <div class="account-actions">
+              <button class="primary-button" type="button" id="signupButton">Sign up</button>
+              <button class="admin-button" type="button" id="signinButton">Sign in</button>
+              <button class="admin-button hidden" type="button" id="logoutButton">Log out</button>
+            </div>
+            <p class="account-status" id="accountStatus" role="status"></p>
+          </form>
+
+          <section class="otp-panel hidden" id="otpPanel" aria-label="OTP verification">
+            <div>
+              <p class="eyebrow">OTP verification</p>
+              <h3>Enter your one-time PIN</h3>
+              <p id="otpHelp">OTP is currently switched off for MVP testing.</p>
+            </div>
+            <label>
+              One-time PIN
+              <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit PIN" />
+            </label>
+            <div class="account-actions">
+              <button class="primary-button" type="button" id="verifyOtpButton">Verify OTP</button>
+              <button class="admin-button" type="button" id="resendOtpButton">Resend OTP</button>
+            </div>
+            <p class="account-status" id="otpStatus" role="status"></p>
+          </section>
+
+          <section class="account-address-panel hidden" id="accountAddressPanel" aria-label="Saved delivery address">
+            <div>
+              <p class="eyebrow">Delivery address</p>
+              <h3>Where should ManjeManje deliver?</h3>
+            </div>
+            <label>
+              Search home or work address
+              <input id="accountAddressInput" type="search" placeholder="Search address in Ermelo" />
+            </label>
+            <input id="accountGpsInput" type="hidden" />
+            <div class="address-tools">
+              <button type="button" id="accountGpsButton">My Location</button>
+              <a id="accountMapSearchLink" href="https://www.google.com/maps/search/?api=1&query=Ermelo%20Mpumalanga" target="_blank" rel="noreferrer">
+                Search Maps
+              </a>
+            </div>
+            <iframe
+              class="map-preview"
+              id="accountMapFrame"
+              title="Address map preview"
+              loading="lazy"
+              src="https://maps.google.com/maps?q=Ermelo%20Mpumalanga&output=embed"
+            ></iframe>
+            <div class="account-actions">
+              <button class="primary-button" type="button" id="saveAddressButton">Save address</button>
+              <a class="admin-button" id="accountNavigateLink" href="https://www.google.com/maps/dir/?api=1&destination=Ermelo%20Mpumalanga" target="_blank" rel="noreferrer">Navigate</a>
+            </div>
+            <p class="account-status" id="addressStatus" role="status"></p>
+          </section>
+        </section>
+
+        <section class="quick-apps" aria-label="ManjeManje apps">
+          <button type="button" data-category="Food">Meals</button>
+          <button type="button" data-category="Groceries">Groceries</button>
+          <button type="button" data-category="Pharmacy">Pharmacy</button>
+          <button type="button" data-category="Parcels">Parcels</button>
+          <button type="button" data-category="Taxi">Taxi</button>
+        </section>
+
+        <nav class="category-tabs" aria-label="Service categories" id="categoryTabs"></nav>
+
+        <section class="section-heading">
+          <div>
+            <p class="eyebrow">Available around Ermelo</p>
+            <h2>Local apps and vendors</h2>
+          </div>
+          <select id="sortSelect" aria-label="Sort vendors">
+            <option value="recommended">Recommended</option>
+            <option value="rating">Top rated</option>
+            <option value="fastest">Fastest delivery</option>
+          </select>
+        </section>
+
+        <section class="restaurant-grid" id="restaurantGrid" aria-label="Vendor list"></section>
+      </section>
+
+      <aside class="cart-panel" aria-label="Order cart">
+        <div class="cart-header">
+          <div>
+            <p class="eyebrow">Your order</p>
+            <h2 id="selectedRestaurant">Choose meals</h2>
+          </div>
+          <button class="icon-button" type="button" id="clearCartButton" aria-label="Clear cart">x</button>
+        </div>
+
+        <div class="cart-items" id="cartItems">
+          <p class="empty-cart">Add a local order to begin.</p>
+        </div>
+
+        <form class="checkout-form" id="checkoutForm">
+          <label>
+            Your name
+            <input required name="customerName" type="text" placeholder="Name for the order" />
+          </label>
+          <label>
+            WhatsApp number
+            <input required name="phone" type="tel" placeholder="e.g. 072 123 4567" />
+          </label>
+          <label>
+            Delivery address
+            <input required name="address" id="addressInput" type="text" placeholder="Street address, area or landmark" />
+          </label>
+          <input name="gps" id="gpsInput" type="hidden" />
+          <div class="address-tools">
+            <button type="button" id="useGpsButton">Use my GPS</button>
+            <a id="mapSearchLink" href="https://www.google.com/maps/search/?api=1&query=Ermelo%20Mpumalanga" target="_blank" rel="noreferrer">
+              Search on Maps
+            </a>
+          </div>
+          <p class="gps-status" id="gpsStatus">Add an address, search Maps, or use GPS for accurate delivery.</p>
+          <label>
+            Delivery note
+            <input name="note" type="text" placeholder="House colour, shop name, gate code, etc." />
+          </label>
+          <div class="payment-row">
+            <label>
+              Payment
+              <select name="payment">
+                <option>Card</option>
+                <option>Cash</option>
+                <option>Wallet</option>
+              </select>
+            </label>
+            <label>
+              Tip
+              <select name="tip" id="tipSelect">
+                <option value="0">None</option>
+                <option value="10">R10</option>
+                <option value="20">R20</option>
+                <option value="35">R35</option>
+              </select>
+            </label>
+          </div>
+        </form>
+
+        <div class="totals">
+          <div><span>Subtotal</span><strong id="subtotal">R0</strong></div>
+          <div><span>Delivery</span><strong id="deliveryFee">R0</strong></div>
+          <div><span>Service</span><strong id="serviceFee">R0</strong></div>
+          <div><span>Tip</span><strong id="tipAmount">R0</strong></div>
+          <div class="grand-total"><span>Total</span><strong id="total">R0</strong></div>
+        </div>
+
+        <button class="checkout-button" type="submit" form="checkoutForm" id="checkoutButton" disabled>
+          Place order
+        </button>
+        <a
+          class="whatsapp-link hidden"
+          id="whatsappLink"
+          href="https://wa.me/27798635027?text=Hi%20Siyabonga%2C%20I%20want%20to%20place%20a%20ManjeManje%20order."
+          target="_blank"
+          rel="noreferrer"
+        >
+          Send order on WhatsApp
+        </a>
+        <p class="order-status" id="orderStatus" role="status"></p>
+      </aside>
+    </main>
+
+    <section class="admin-panel hidden" id="adminPanel" aria-label="Admin orders">
+      <div class="admin-heading">
+        <div>
+          <p class="eyebrow">Owner dashboard</p>
+          <h2>Incoming orders</h2>
+        </div>
+        <div class="admin-actions">
+          <button type="button" id="seedOrderButton">Add demo order</button>
+          <button type="button" id="clearOrdersButton">Clear completed</button>
+          <button type="button" id="clearCustomersButton">Clear customers</button>
+        </div>
+      </div>
+      <div class="admin-summary" id="adminSummary"></div>
+      <div class="admin-subheading">
+        <h3>Customers</h3>
+        <p>Signed-up customer details stored on this device.</p>
+      </div>
+      <div class="customers-list" id="customersList"></div>
+      <div class="admin-subheading">
+        <h3>Orders</h3>
+        <p>Incoming requests and delivery status.</p>
+      </div>
+      <div class="orders-list" id="ordersList"></div>
+    </section>
+
+    <footer class="site-footer">
+      <p>
+        Created by <strong>Siyabonga Manzini</strong> to make everyday services simpler, faster and more convenient for
+        the people of South Africa.
+      </p>
+    </footer>
+
+    <form name="manjemanje-signups" data-netlify="true" netlify hidden>
+      <input type="hidden" name="form-name" value="manjemanje-signups" />
+      <input type="text" name="name" />
+      <input type="text" name="phone" />
+      <input type="text" name="address" />
+      <input type="text" name="gps" />
+      <input type="text" name="createdAt" />
+    </form>
+
+    <form name="manjemanje-orders" data-netlify="true" netlify hidden>
+      <input type="hidden" name="form-name" value="manjemanje-orders" />
+      <input type="text" name="orderId" />
+      <input type="text" name="customerName" />
+      <input type="text" name="phone" />
+      <input type="text" name="address" />
+      <input type="text" name="vendorName" />
+      <input type="text" name="total" />
+      <textarea name="items"></textarea>
+      <input type="text" name="createdAt" />
+    </form>
+
+    <template id="restaurantTemplate">
+      <article class="restaurant-card">
+        <div class="restaurant-image"></div>
+        <div class="restaurant-body">
+          <div class="restaurant-title-row">
+            <h3></h3>
+            <span class="rating"></span>
+          </div>
+          <p class="meta"></p>
+          <div class="tag-row"></div>
+          <div class="menu-list"></div>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
