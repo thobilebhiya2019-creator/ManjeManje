@@ -531,16 +531,41 @@ function hideAddressSuggestions(list) {
   list.innerHTML = "";
 }
 
-function renderAddressSuggestions(list, results, onSelect) {
+function typedStreetNumber(value) {
+  return value.trim().match(/^\d+[a-zA-Z]?/)?.[0] || "";
+}
+
+function keepTypedStreetNumber(typedValue, selectedAddress) {
+  const number = typedStreetNumber(typedValue);
+  if (!number || selectedAddress.trim().startsWith(number)) {
+    return selectedAddress;
+  }
+  return `${number} ${selectedAddress}`;
+}
+
+function renderAddressSuggestions(input, list, results, onSelect) {
   list.innerHTML = "";
-  if (!results.length) {
+  const typedAddress = input.value.trim();
+  if (!results.length && typedAddress.length < 3) {
     hideAddressSuggestions(list);
     return;
   }
 
+  if (typedAddress.length >= 3) {
+    const typedButton = document.createElement("button");
+    typedButton.type = "button";
+    typedButton.setAttribute("role", "option");
+    typedButton.innerHTML = `<span>Use exactly: ${typedAddress}</span><small>Keep the street number you typed</small>`;
+    typedButton.addEventListener("click", () => {
+      onSelect(typedAddress, "");
+      hideAddressSuggestions(list);
+    });
+    list.appendChild(typedButton);
+  }
+
   results.forEach((place) => {
     const button = document.createElement("button");
-    const address = place.display_name;
+    const address = keepTypedStreetNumber(typedAddress, place.display_name);
     button.type = "button";
     button.setAttribute("role", "option");
     button.innerHTML = `<span>${address}</span><small>${Number(place.lat).toFixed(5)}, ${Number(place.lon).toFixed(5)}</small>`;
@@ -551,7 +576,9 @@ function renderAddressSuggestions(list, results, onSelect) {
     list.appendChild(button);
   });
 
-  list.classList.remove("hidden");
+  if (list.children.length) {
+    list.classList.remove("hidden");
+  }
 }
 
 function setupAddressAutocomplete(input, list, onSelect, onTyping) {
@@ -565,7 +592,7 @@ function setupAddressAutocomplete(input, list, onSelect, onTyping) {
     timer = setTimeout(async () => {
       const results = await searchAddresses(input.value).catch(() => []);
       if (lastRequest !== requestId) return;
-      renderAddressSuggestions(list, results, onSelect);
+      renderAddressSuggestions(input, list, results, onSelect);
     }, 350);
   });
 
