@@ -837,6 +837,7 @@ async function handleAccountAction(mode) {
         phone: pendingUser.phone,
         address: pendingUser.address,
         gps: pendingUser.gps,
+        event: "signup",
         createdAt: pendingUser.createdAt,
       });
       accountStatus.textContent = "Account created. Now add or confirm your delivery address below.";
@@ -1024,8 +1025,15 @@ saveAddressButton.addEventListener("click", () => {
   updateAccountMap(state.currentUser.gps || state.currentUser.address);
   addressStatus.textContent = "Address saved. You can now order with these delivery details.";
   renderCustomers();
-  apiRequest("/api/customers/update", state.currentUser).catch((error) => {
-    addressStatus.textContent = `Address saved locally, but server update failed: ${error.message}`;
+  submitNetlifyForm("manjemanje-signups", {
+    name: state.currentUser.name,
+    phone: state.currentUser.phone,
+    address: state.currentUser.address,
+    gps: state.currentUser.gps,
+    event: "address saved",
+    createdAt: new Date().toISOString(),
+  }).catch(() => {
+    addressStatus.textContent = "Address saved on this device. If you are offline, it may not appear in Netlify yet.";
   });
 });
 
