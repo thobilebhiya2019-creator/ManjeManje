@@ -734,6 +734,18 @@ function updateCheckoutMapSearch() {
   mapSearchLink.href = mapsSearchUrl(`${addressInput.value} ${area} Ermelo Mpumalanga`);
 }
 
+function saveCurrentUserAddress(address, gps = "") {
+  if (!state.currentUser) return;
+  state.currentUser = {
+    ...state.currentUser,
+    address: visibleDeliveryAddress(address, gps) || address,
+    gps: gps || state.currentUser.gps || "",
+  };
+  state.users = state.users.map((user) => (user.id === state.currentUser.id ? state.currentUser : user));
+  saveUsers();
+  saveSession(state.currentUser);
+}
+
 function renderAccount() {
   const user = state.currentUser;
   if (user) {
@@ -1219,10 +1231,13 @@ setupAddressAutocomplete(
     accountGpsInput.value = coords;
     addressInput.value = address;
     gpsInput.value = coords;
+    saveCurrentUserAddress(address, coords);
     document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(address)}`;
     updateAccountMap(coords);
     updateCheckoutMapSearch();
-    addressStatus.textContent = "Address selected. Save it to your profile.";
+    fillCheckoutFromUser(state.currentUser);
+    renderCustomers();
+    addressStatus.textContent = "Address selected and added to your delivery details.";
   },
   () => {
     accountGpsInput.value = "";
@@ -1317,6 +1332,8 @@ setupAddressAutocomplete(
     if (state.currentUser) {
       accountAddressInput.value = address;
       accountGpsInput.value = coords;
+      saveCurrentUserAddress(address, coords);
+      renderCustomers();
     }
     document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(address)}`;
     mapSearchLink.href = mapsDirectionsUrl(coords);
