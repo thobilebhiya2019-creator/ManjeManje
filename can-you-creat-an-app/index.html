@@ -40,6 +40,8 @@
       >
         Say hi
       </a>
+
+      <a class="admin-button driver-button" href="#driver" id="driverOpenLink">Driver</a>
     </header>
 
     <main class="app-shell">
@@ -220,9 +222,9 @@
             <label>
               Ride type
               <select name="payment">
-                <option>Standard ride</option>
-                <option>Quick pickup</option>
-                <option>Scheduled pickup</option>
+                <option>Standard ride - Cash</option>
+                <option>Quick pickup - Cash</option>
+                <option>Scheduled pickup - Cash</option>
               </select>
             </label>
             <label>
@@ -260,6 +262,19 @@
         <p class="order-status" id="orderStatus" role="status"></p>
       </aside>
     </main>
+
+    <section class="driver-panel hidden" id="driverPanel" aria-label="Driver app">
+      <div class="admin-heading">
+        <div>
+          <p class="eyebrow">Driver app</p>
+          <h2>Ride requests</h2>
+          <p>Cash only for now. Open the map, contact the customer and update the trip status.</p>
+        </div>
+        <a class="whatsapp-link" id="driverWhatsAppLink" target="_blank" rel="noreferrer">Message Siyabonga</a>
+      </div>
+      <div class="admin-summary" id="driverSummary"></div>
+      <div class="orders-list" id="driverRequestsList"></div>
+    </section>
 
     <section class="admin-panel hidden" id="adminPanel" aria-label="Admin ride requests">
       <div class="admin-heading">
@@ -311,6 +326,7 @@
       <input type="text" name="phone" />
       <input type="text" name="address" />
       <input type="text" name="vendorName" />
+      <input type="text" name="payment" />
       <input type="text" name="total" />
       <textarea name="items"></textarea>
       <input type="text" name="createdAt" />

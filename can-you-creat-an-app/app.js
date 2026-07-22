@@ -123,6 +123,7 @@ const vendors = [
 
 const areas = ["Ermelo CBD", "Wesselton", "Cassim Park", "Ext 32", "Nyibe", "AJ Swanepoel"];
 const ownerWhatsAppNumber = "27798635027";
+const driverWhatsAppNumber = "27798635027";
 const apiBase = location.protocol === "file:" ? "http://127.0.0.1:8787" : "";
 const otpRequired = false;
 const staffPin = "2468";
@@ -223,6 +224,10 @@ const otpHelp = document.querySelector("#otpHelp");
 const otpStatus = document.querySelector("#otpStatus");
 const verifyOtpButton = document.querySelector("#verifyOtpButton");
 const resendOtpButton = document.querySelector("#resendOtpButton");
+const driverPanel = document.querySelector("#driverPanel");
+const driverRequestsList = document.querySelector("#driverRequestsList");
+const driverSummary = document.querySelector("#driverSummary");
+const driverWhatsAppLink = document.querySelector("#driverWhatsAppLink");
 
 const money = (value) => `R${Math.round(value)}`;
 
@@ -308,6 +313,10 @@ function whatsAppUrl(message) {
   return `https://wa.me/${ownerWhatsAppNumber}?text=${encodeURIComponent(message)}`;
 }
 
+function driverWhatsAppUrl(message) {
+  return `https://wa.me/${driverWhatsAppNumber}?text=${encodeURIComponent(message)}`;
+}
+
 function mapsSearchUrl(query) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query || "Ermelo Mpumalanga")}`;
 }
@@ -318,6 +327,12 @@ function mapsEmbedUrl(query) {
 
 function mapsDirectionsUrl(destination) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+}
+
+function mapsRouteUrl(origin, destination) {
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin || "Ermelo Mpumalanga")}&destination=${encodeURIComponent(
+    destination || "Ermelo Mpumalanga",
+  )}&travelmode=driving`;
 }
 
 function deliveryMapTarget(order) {
@@ -777,6 +792,7 @@ function orderMessage(order) {
     `GPS/Maps: ${mapsDirectionsUrl(deliveryMapTarget(order))}`,
     `Note: ${order.note || "None"}`,
     `Ride type: ${order.payment}`,
+    `Payment: Cash only`,
     `Estimated total: ${money(order.total)}`,
   ].join("\n");
 }
@@ -943,6 +959,83 @@ function renderCustomers() {
     });
 }
 
+function driverStatusClass(status) {
+  return statusClass(status || "New");
+}
+
+function renderDriverRequests() {
+  if (!driverPanel || !driverRequestsList || !driverSummary) return;
+  const activeRides = state.orders.filter((order) => order.status !== "Done");
+  const completedRides = state.orders.filter((order) => order.status === "Done");
+  const cashToCollect = activeRides.reduce((sum, order) => sum + order.total, 0);
+
+  driverSummary.innerHTML = `
+    <div class="summary-card"><span>Active rides</span><strong>${activeRides.length}</strong></div>
+    <div class="summary-card"><span>Completed</span><strong>${completedRides.length}</strong></div>
+    <div class="summary-card"><span>Cash to collect</span><strong>${money(cashToCollect)}</strong></div>
+  `;
+
+  driverRequestsList.innerHTML = "";
+  if (!activeRides.length) {
+    driverRequestsList.innerHTML = '<p class="empty-cart">No active ride requests yet.</p>';
+    return;
+  }
+
+  activeRides
+    .slice()
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .forEach((order) => {
+      const card = document.createElement("article");
+      card.className = "order-card driver-request-card";
+      card.innerHTML = `
+        <div class="order-topline">
+          <h3>${order.id}</h3>
+          <span class="status-pill ${driverStatusClass(order.status)}">${order.status}</span>
+        </div>
+        <p><strong>${order.customerName}</strong> - ${order.phone}</p>
+        <p><strong>Pickup:</strong> ${order.pickup || "Not saved"}</p>
+        <p><strong>Destination:</strong> ${order.address}</p>
+        <div class="order-meta">
+          <span>${order.payment}</span>
+          <strong>${money(order.total)}</strong>
+          <span>Cash only</span>
+        </div>
+      `;
+
+      const actions = document.createElement("div");
+      actions.className = "order-actions";
+
+      const contactCustomer = document.createElement("a");
+      contactCustomer.className = "whatsapp-link";
+      contactCustomer.href = `https://wa.me/27${order.phone.replace(/\D/g, "").replace(/^0/, "")}?text=${encodeURIComponent(
+        `Hi ${order.customerName}, I am your ManjeManje driver for ride ${order.id}.`,
+      )}`;
+      contactCustomer.target = "_blank";
+      contactCustomer.rel = "noreferrer";
+      contactCustomer.textContent = "WhatsApp customer";
+      actions.append(contactCustomer);
+
+      const route = document.createElement("a");
+      route.className = "map-link";
+      route.href = mapsRouteUrl(order.pickup || order.gps, order.address);
+      route.target = "_blank";
+      route.rel = "noreferrer";
+      route.textContent = "Open route";
+      actions.append(route);
+
+      ["Accepted", "Picked up", "Done"].forEach((status) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = status;
+        button.addEventListener("click", () => updateOrderStatus(order.id, status));
+        actions.append(button);
+      });
+
+      card.append(actions);
+      driverRequestsList.append(card);
+    });
+}
+
 function removeCustomer(id) {
   state.users = state.users.filter((user) => user.id !== id);
   if (state.currentUser?.id === id) {
@@ -957,6 +1050,7 @@ function updateOrderStatus(id, status) {
   state.orders = state.orders.map((order) => (order.id === id ? { ...order, status } : order));
   saveOrders();
   renderOrders();
+  renderDriverRequests();
 }
 
 function render() {
@@ -965,6 +1059,7 @@ function render() {
   renderCart();
   renderOrders();
   renderAccount();
+  renderDriverRequests();
 }
 
 searchInput.addEventListener("input", (event) => {
@@ -1420,12 +1515,13 @@ checkoutForm.addEventListener("submit", (event) => {
     pickup: order.pickup,
     address: order.address,
     vendorName: order.vendorName,
+    payment: "Cash only",
     total: money(order.total),
     items: `${order.pickup} to ${order.address}`,
     createdAt: order.createdAt,
   });
-  orderStatus.textContent = `Ride request ${order.id} saved. Send it to Siyabonga on WhatsApp so it can be actioned.`;
-  whatsappLink.href = whatsAppUrl(orderMessage(order));
+  orderStatus.textContent = `Ride request ${order.id} saved. Send it to the driver on WhatsApp.`;
+  whatsappLink.href = driverWhatsAppUrl(orderMessage(order));
   whatsappLink.classList.remove("hidden");
   state.cart.clear();
   state.activeVendorId = null;
@@ -1439,6 +1535,7 @@ checkoutForm.addEventListener("submit", (event) => {
   fillCheckoutFromUser(state.currentUser);
   renderCart();
   renderOrders();
+  renderDriverRequests();
 });
 
 function openStaffDashboard() {
@@ -1450,6 +1547,18 @@ function openStaffDashboard() {
   adminPanel.classList.remove("hidden");
   adminPanel.scrollIntoView({ behavior: "smooth" });
 }
+
+function openDriverPanel() {
+  driverPanel?.classList.remove("hidden");
+  renderDriverRequests();
+  driverPanel?.scrollIntoView({ behavior: "smooth" });
+}
+
+window.addEventListener("hashchange", () => {
+  if (location.hash === "#driver") {
+    openDriverPanel();
+  }
+});
 
 let staffShortcut = "";
 document.addEventListener("keydown", (event) => {
@@ -1507,7 +1616,13 @@ document.querySelector("#clearCustomersButton").addEventListener("click", () => 
 });
 
 helloLink.href = whatsAppUrl("Hi Siyabonga, I am interested in ManjeManje.");
+if (driverWhatsAppLink) {
+  driverWhatsAppLink.href = whatsAppUrl("Hi Siyabonga, I am online for ManjeManje ride requests.");
+}
 mapSearchLink.href = mapsSearchUrl("Ermelo Mpumalanga");
 updateAccountMap("Ermelo Mpumalanga");
 
 render();
+if (location.hash === "#driver") {
+  openDriverPanel();
+}
