@@ -21,15 +21,13 @@
 
       <label class="search-wrap" for="searchInput">
         <span aria-hidden="true">Search</span>
-        <input id="searchInput" type="search" placeholder="Food, groceries, pharmacy, rides" autocomplete="off" />
+        <input id="searchInput" type="search" placeholder="Search pickup or destination" autocomplete="off" />
       </label>
 
       <button class="location-button" type="button" id="locationButton">
         <span aria-hidden="true">Pin</span>
         <span id="deliveryArea">Delivering to Ermelo CBD</span>
       </button>
-
-      <button class="admin-button" type="button" id="adminToggle">Admin</button>
 
       <a class="admin-button account-button" href="#accountPanel" id="accountToggle">Account</a>
 
@@ -46,15 +44,15 @@
 
     <main class="app-shell">
       <section class="content">
-        <section class="hero" aria-label="Featured delivery offer">
+        <section class="hero" aria-label="Ermelo ride request">
           <div>
-            <p class="eyebrow">Ermelo, manje manje</p>
-            <h1>Food, essentials and local help for Ermelo people.</h1>
+            <p class="eyebrow">Ermelo rides, manje manje</p>
+            <h1>Request a local ride around Ermelo.</h1>
             <p class="hero-copy">
-              Order from township kitchens, town shops, pharmacies, parcel runners and taxis in one simple local app.
+              Choose your pickup, add your destination and send the request straight to ManjeManje on WhatsApp.
             </p>
             <div class="hero-actions">
-              <button class="primary-button" type="button" id="startOrderButton">Browse Ermelo</button>
+              <button class="primary-button" type="button" id="startOrderButton">Request a ride</button>
               <span>Ermelo CBD, Wesselton, Cassim Park, Ext 32</span>
             </div>
           </div>
@@ -117,14 +115,15 @@
             <p class="account-status" id="otpStatus" role="status"></p>
           </section>
 
-          <section class="account-address-panel hidden" id="accountAddressPanel" aria-label="Saved delivery address">
+          <section class="account-address-panel hidden" id="accountAddressPanel" aria-label="Saved pickup address">
             <div>
-              <p class="eyebrow">Delivery address</p>
-              <h3>Where should ManjeManje deliver?</h3>
+              <p class="eyebrow">Pickup address</p>
+              <h3>Where should the driver collect you?</h3>
             </div>
             <label>
               Search home or work address
               <input id="accountAddressInput" type="search" placeholder="Search address in Ermelo" />
+              <div class="address-suggestions hidden" id="accountAddressSuggestions" role="listbox"></div>
             </label>
             <input id="accountGpsInput" type="hidden" />
             <div class="address-tools">
@@ -148,7 +147,7 @@
           </section>
         </section>
 
-        <section class="quick-apps" aria-label="ManjeManje apps">
+        <section class="quick-apps hidden" aria-label="ManjeManje apps">
           <button type="button" data-category="Food">Meals</button>
           <button type="button" data-category="Groceries">Groceries</button>
           <button type="button" data-category="Pharmacy">Pharmacy</button>
@@ -156,9 +155,9 @@
           <button type="button" data-category="Taxi">Taxi</button>
         </section>
 
-        <nav class="category-tabs" aria-label="Service categories" id="categoryTabs"></nav>
+        <nav class="category-tabs hidden" aria-label="Service categories" id="categoryTabs"></nav>
 
-        <section class="section-heading">
+        <section class="section-heading hidden">
           <div>
             <p class="eyebrow">Available around Ermelo</p>
             <h2>Local apps and vendors</h2>
@@ -170,34 +169,40 @@
           </select>
         </section>
 
-        <section class="restaurant-grid" id="restaurantGrid" aria-label="Vendor list"></section>
+        <section class="restaurant-grid hidden" id="restaurantGrid" aria-label="Vendor list"></section>
       </section>
 
-      <aside class="cart-panel" aria-label="Order cart">
+      <aside class="cart-panel" aria-label="Ride request">
         <div class="cart-header">
           <div>
-            <p class="eyebrow">Your order</p>
-            <h2 id="selectedRestaurant">Choose meals</h2>
+            <p class="eyebrow">Your ride</p>
+            <h2 id="selectedRestaurant">Where are you going?</h2>
           </div>
           <button class="icon-button" type="button" id="clearCartButton" aria-label="Clear cart">x</button>
         </div>
 
         <div class="cart-items" id="cartItems">
-          <p class="empty-cart">Add a local order to begin.</p>
+          <p class="empty-cart">Add pickup and destination to request a ride.</p>
         </div>
 
         <form class="checkout-form" id="checkoutForm">
           <label>
             Your name
-            <input required name="customerName" type="text" placeholder="Name for the order" />
+            <input required name="customerName" type="text" placeholder="Name for the ride" />
           </label>
           <label>
             WhatsApp number
             <input required name="phone" type="tel" placeholder="e.g. 072 123 4567" />
           </label>
           <label>
-            Delivery address
-            <input required name="address" id="addressInput" type="text" placeholder="Street address, area or landmark" />
+            Pickup address
+            <input required name="pickup" id="pickupInput" type="text" placeholder="Where should the driver collect you?" />
+            <div class="address-suggestions hidden" id="pickupAddressSuggestions" role="listbox"></div>
+          </label>
+          <label>
+            Destination
+            <input required name="address" id="addressInput" type="text" placeholder="Where are you going?" />
+            <div class="address-suggestions hidden" id="checkoutAddressSuggestions" role="listbox"></div>
           </label>
           <input name="gps" id="gpsInput" type="hidden" />
           <div class="address-tools">
@@ -206,18 +211,18 @@
               Search on Maps
             </a>
           </div>
-          <p class="gps-status" id="gpsStatus">Add an address, search Maps, or use GPS for accurate delivery.</p>
+          <p class="gps-status" id="gpsStatus">Use GPS for pickup, then search your destination.</p>
           <label>
-            Delivery note
-            <input name="note" type="text" placeholder="House colour, shop name, gate code, etc." />
+            Ride note
+            <input name="note" type="text" placeholder="Gate, landmark, number of passengers, pickup time, etc." />
           </label>
           <div class="payment-row">
             <label>
-              Payment
+              Ride type
               <select name="payment">
-                <option>Card</option>
-                <option>Cash</option>
-                <option>Wallet</option>
+                <option>Standard ride</option>
+                <option>Quick pickup</option>
+                <option>Scheduled pickup</option>
               </select>
             </label>
             <label>
@@ -233,37 +238,37 @@
         </form>
 
         <div class="totals">
-          <div><span>Subtotal</span><strong id="subtotal">R0</strong></div>
-          <div><span>Delivery</span><strong id="deliveryFee">R0</strong></div>
-          <div><span>Service</span><strong id="serviceFee">R0</strong></div>
+          <div><span>Base estimate</span><strong id="subtotal">R0</strong></div>
+          <div><span>Distance extra</span><strong id="deliveryFee">R0</strong></div>
+          <div><span>App service</span><strong id="serviceFee">R0</strong></div>
           <div><span>Tip</span><strong id="tipAmount">R0</strong></div>
           <div class="grand-total"><span>Total</span><strong id="total">R0</strong></div>
         </div>
 
         <button class="checkout-button" type="submit" form="checkoutForm" id="checkoutButton" disabled>
-          Place order
+          Request ride
         </button>
         <a
           class="whatsapp-link hidden"
           id="whatsappLink"
-          href="https://wa.me/27798635027?text=Hi%20Siyabonga%2C%20I%20want%20to%20place%20a%20ManjeManje%20order."
+          href="https://wa.me/27798635027?text=Hi%20Siyabonga%2C%20I%20want%20to%20request%20a%20ManjeManje%20ride."
           target="_blank"
           rel="noreferrer"
         >
-          Send order on WhatsApp
+          Send ride request on WhatsApp
         </a>
         <p class="order-status" id="orderStatus" role="status"></p>
       </aside>
     </main>
 
-    <section class="admin-panel hidden" id="adminPanel" aria-label="Admin orders">
+    <section class="admin-panel hidden" id="adminPanel" aria-label="Admin ride requests">
       <div class="admin-heading">
         <div>
           <p class="eyebrow">Owner dashboard</p>
-          <h2>Incoming orders</h2>
+          <h2>Incoming ride requests</h2>
         </div>
         <div class="admin-actions">
-          <button type="button" id="seedOrderButton">Add demo order</button>
+          <button type="button" id="seedOrderButton">Add demo ride</button>
           <button type="button" id="clearOrdersButton">Clear completed</button>
           <button type="button" id="clearCustomersButton">Clear customers</button>
         </div>
@@ -275,8 +280,8 @@
       </div>
       <div class="customers-list" id="customersList"></div>
       <div class="admin-subheading">
-        <h3>Orders</h3>
-        <p>Incoming requests and delivery status.</p>
+        <h3>Ride requests</h3>
+        <p>Incoming ride requests and driver status.</p>
       </div>
       <div class="orders-list" id="ordersList"></div>
     </section>
@@ -288,16 +293,18 @@
       </p>
     </footer>
 
-    <form name="manjemanje-signups" data-netlify="true" netlify hidden>
+    <form name="manjemanje-signups" method="POST" data-netlify="true" netlify hidden>
       <input type="hidden" name="form-name" value="manjemanje-signups" />
       <input type="text" name="name" />
       <input type="text" name="phone" />
+      <input type="text" name="pickup" />
       <input type="text" name="address" />
       <input type="text" name="gps" />
+      <input type="text" name="event" />
       <input type="text" name="createdAt" />
     </form>
 
-    <form name="manjemanje-orders" data-netlify="true" netlify hidden>
+    <form name="manjemanje-orders" method="POST" data-netlify="true" netlify hidden>
       <input type="hidden" name="form-name" value="manjemanje-orders" />
       <input type="text" name="orderId" />
       <input type="text" name="customerName" />

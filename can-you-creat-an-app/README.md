@@ -13,7 +13,7 @@ This is a simple launch MVP for testing ManjeManje in Ermelo.
 7. Customer enters or confirms delivery details, note, payment and tip.
 8. Press `Place order`.
 9. Press `Send order on WhatsApp` to forward the order to your dispatcher, vendor or driver.
-10. Press `Admin` to see saved orders on this device.
+10. Staff can type `staff` on the page and enter the staff PIN to open the owner dashboard.
 
 ## OTP setup
 
@@ -29,6 +29,8 @@ Or use Twilio SMS:
 - `TWILIO_FROM_NUMBER`
 
 ## Admin flow
+
+Type `staff` on the public page and enter the staff PIN to open the dashboard.
 
 - `Customers`: shows people who signed up on this browser/device.
 - `WhatsApp customer`: opens a direct chat with a signed-up customer.

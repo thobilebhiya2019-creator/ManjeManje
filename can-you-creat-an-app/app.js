@@ -125,6 +125,7 @@ const areas = ["Ermelo CBD", "Wesselton", "Cassim Park", "Ext 32", "Nyibe", "AJ 
 const ownerWhatsAppNumber = "27798635027";
 const apiBase = location.protocol === "file:" ? "http://127.0.0.1:8787" : "";
 const otpRequired = false;
+const staffPin = "2468";
 const ordersKey = "manjemanje-orders";
 const usersKey = "manjemanje-users";
 const sessionKey = "manjemanje-session";
@@ -190,6 +191,7 @@ const customersList = document.querySelector("#customersList");
 const adminSummary = document.querySelector("#adminSummary");
 const helloLink = document.querySelector("#helloLink");
 const addressInput = document.querySelector("#addressInput");
+const pickupInput = document.querySelector("#pickupInput");
 const gpsInput = document.querySelector("#gpsInput");
 const gpsStatus = document.querySelector("#gpsStatus");
 const mapSearchLink = document.querySelector("#mapSearchLink");
@@ -212,6 +214,9 @@ const accountMapFrame = document.querySelector("#accountMapFrame");
 const accountNavigateLink = document.querySelector("#accountNavigateLink");
 const saveAddressButton = document.querySelector("#saveAddressButton");
 const addressStatus = document.querySelector("#addressStatus");
+const accountAddressSuggestions = document.querySelector("#accountAddressSuggestions");
+const pickupAddressSuggestions = document.querySelector("#pickupAddressSuggestions");
+const checkoutAddressSuggestions = document.querySelector("#checkoutAddressSuggestions");
 const otpPanel = document.querySelector("#otpPanel");
 const otpInput = document.querySelector("#otpInput");
 const otpHelp = document.querySelector("#otpHelp");
@@ -430,40 +435,29 @@ function cartVendor() {
 }
 
 function totals() {
-  const subtotal = [...state.cart.values()].reduce((sum, item) => sum + item.price * item.qty, 0);
-  const vendor = cartVendor();
-  const delivery = subtotal ? vendor?.fee || 0 : 0;
-  const service = subtotal ? Math.max(6, subtotal * 0.06) : 0;
+  const hasRide = Boolean(pickupInput?.value.trim() && addressInput?.value.trim());
+  const subtotal = hasRide ? 35 : 0;
+  const delivery = hasRide ? 0 : 0;
+  const service = hasRide ? 5 : 0;
   const tip = Number(tipSelect.value || 0);
   return { subtotal, delivery, service, tip, total: subtotal + delivery + service + tip };
 }
 
 function renderCart() {
-  const vendor = cartVendor();
-  selectedRestaurant.textContent = vendor ? vendor.name : "Choose a local order";
+  selectedRestaurant.textContent = "Where are you going?";
   cartItems.innerHTML = "";
-
-  if (!state.cart.size) {
-    cartItems.innerHTML = '<p class="empty-cart">Add a local order to begin.</p>';
-  } else {
-    [...state.cart.values()].forEach((item) => {
-      const line = document.createElement("div");
-      line.className = "cart-line";
-      line.innerHTML = `
-        <div>
-          <p><strong>${item.name}</strong></p>
-          <small>${money(item.price * item.qty)}</small>
-        </div>
-      `;
-      const controls = document.createElement("div");
-      controls.className = "qty-controls";
-      controls.innerHTML = `<button class="qty-button" type="button" aria-label="Remove one">-</button><span>${item.qty}</span><button class="qty-button" type="button" aria-label="Add one">+</button>`;
-      controls.children[0].addEventListener("click", () => updateQty(item.id, -1));
-      controls.children[2].addEventListener("click", () => updateQty(item.id, 1));
-      line.append(controls);
-      cartItems.append(line);
-    });
-  }
+  const pickup = pickupInput?.value.trim();
+  const destination = addressInput?.value.trim();
+  cartItems.innerHTML = `
+    <div class="ride-summary-line">
+      <span>Pickup</span>
+      <strong>${pickup || "Choose pickup location"}</strong>
+    </div>
+    <div class="ride-summary-line">
+      <span>Destination</span>
+      <strong>${destination || "Choose destination"}</strong>
+    </div>
+  `;
 
   const summary = totals();
   document.querySelector("#subtotal").textContent = money(summary.subtotal);
@@ -471,16 +465,253 @@ function renderCart() {
   document.querySelector("#serviceFee").textContent = money(summary.service);
   document.querySelector("#tipAmount").textContent = money(summary.tip);
   document.querySelector("#total").textContent = money(summary.total);
-  checkoutButton.disabled = !state.cart.size;
+  checkoutButton.disabled = !(pickup && destination);
 }
 
 function fillCheckoutFromUser(user) {
   if (!user) return;
+  const address = visibleDeliveryAddress(user.address, user.gps);
   checkoutForm.elements.customerName.value = user.name || "";
   checkoutForm.elements.phone.value = user.phone || "";
-  checkoutForm.elements.address.value = user.address || "";
+  if (!pickupInput.value) pickupInput.value = address;
   gpsInput.value = user.gps || "";
-  addressInput.dispatchEvent(new Event("input"));
+  document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(address || "Ermelo CBD")}`;
+  updateCheckoutMapSearch();
+  renderCart();
+}
+
+function shortAddress(value) {
+  return value.length > 34 ? `${value.slice(0, 31)}...` : value;
+}
+
+function visibleDeliveryAddress(address, gps = "") {
+  const value = (address || "").trim();
+  if (/^(my gps location|gps location near ermelo):\s*-?\d/i.test(value)) {
+    return fallbackPinnedAddress();
+  }
+  if (!value && gps) {
+    return fallbackPinnedAddress();
+  }
+  return value;
+}
+
+async function fetchJsonWithTimeout(url, timeout = 4500) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function addressFromPhotonFeature(feature) {
+  const props = feature?.properties || {};
+  const pieces = [
+    props.housenumber && props.street ? `${props.housenumber} ${props.street}` : props.street || props.name,
+    props.district,
+    props.city,
+    props.county,
+    props.state,
+    props.postcode,
+    props.country,
+  ].filter(Boolean);
+  return [...new Set(pieces)].join(", ");
+}
+
+function addressFromBigDataCloud(data) {
+  const pieces = [
+    data.road,
+    data.locality || data.city,
+    data.principalSubdivision,
+    data.postcode,
+    data.countryName,
+  ].filter(Boolean);
+  return [...new Set(pieces)].join(", ");
+}
+
+async function reverseGeocode(latitude, longitude) {
+  const photonParams = new URLSearchParams({
+    lat: latitude,
+    lon: longitude,
+    lang: "en",
+  });
+  const bigDataParams = new URLSearchParams({
+    latitude,
+    longitude,
+    localityLanguage: "en",
+  });
+
+  const [photonData, bigDataCloudData] = await Promise.all([
+    fetchJsonWithTimeout(`https://photon.komoot.io/reverse?${photonParams.toString()}`),
+    fetchJsonWithTimeout(`https://api.bigdatacloud.net/data/reverse-geocode-client?${bigDataParams.toString()}`),
+  ]);
+
+  const photonAddress = addressFromPhotonFeature(photonData?.features?.[0]);
+  const bigDataAddress = addressFromBigDataCloud(bigDataCloudData || {});
+  return photonAddress || bigDataAddress || "";
+}
+
+function fallbackPinnedAddress() {
+  return "Pinned location near Ermelo, Mpumalanga";
+}
+
+async function searchAddresses(query) {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const searchText = /ermelo|mpumalanga/i.test(trimmed) ? trimmed : `${trimmed}, Ermelo, Mpumalanga`;
+  const fastResults = await searchFastAddresses(searchText);
+  if (fastResults.length) {
+    return fastResults;
+  }
+
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    q: searchText,
+    countrycodes: "za",
+    addressdetails: "1",
+    limit: "6",
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return [];
+  return response.json();
+}
+
+async function searchFastAddresses(searchText) {
+  const params = new URLSearchParams({
+    q: searchText,
+    lat: "-26.5333",
+    lon: "29.9833",
+    limit: "7",
+    lang: "en",
+  });
+  const response = await fetch(`https://photon.komoot.io/api/?${params.toString()}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return [];
+  const data = await response.json();
+  return (data.features || [])
+    .filter((feature) => feature.geometry?.coordinates?.length >= 2)
+    .map((feature) => {
+      const [lon, lat] = feature.geometry.coordinates;
+      const props = feature.properties || {};
+      const pieces = [
+        props.name,
+        props.street,
+        props.district,
+        props.city,
+        props.county,
+        props.state,
+        props.postcode,
+        props.country,
+      ].filter(Boolean);
+      return {
+        display_name: [...new Set(pieces)].join(", "),
+        lat,
+        lon,
+      };
+    })
+    .filter((place) => place.display_name);
+}
+
+function hideAddressSuggestions(list) {
+  list.classList.add("hidden");
+  list.innerHTML = "";
+}
+
+function typedStreetNumber(value) {
+  return value.trim().match(/^\d+[a-zA-Z]?/)?.[0] || "";
+}
+
+function keepTypedStreetNumber(typedValue, selectedAddress) {
+  const number = typedStreetNumber(typedValue);
+  if (!number || selectedAddress.trim().startsWith(number)) {
+    return selectedAddress;
+  }
+  return `${number} ${selectedAddress}`;
+}
+
+function renderAddressSuggestions(input, list, results, onSelect) {
+  list.innerHTML = "";
+  const typedAddress = input.value.trim();
+  if (!results.length && typedAddress.length < 2) {
+    hideAddressSuggestions(list);
+    return;
+  }
+
+  if (typedAddress.length >= 2) {
+    const typedButton = document.createElement("button");
+    typedButton.type = "button";
+    typedButton.setAttribute("role", "option");
+    typedButton.innerHTML = `<span>Use exactly: ${typedAddress}</span><small>Keep the street number you typed</small>`;
+    typedButton.addEventListener("click", () => {
+      onSelect(typedAddress, "");
+      hideAddressSuggestions(list);
+    });
+    list.appendChild(typedButton);
+  }
+
+  results.forEach((place) => {
+    const button = document.createElement("button");
+    const address = keepTypedStreetNumber(typedAddress, place.display_name);
+    button.type = "button";
+    button.setAttribute("role", "option");
+    button.innerHTML = `<span>${address}</span><small>${Number(place.lat).toFixed(5)}, ${Number(place.lon).toFixed(5)}</small>`;
+    button.addEventListener("click", () => {
+      onSelect(address, `${Number(place.lat).toFixed(6)},${Number(place.lon).toFixed(6)}`);
+      hideAddressSuggestions(list);
+    });
+    list.appendChild(button);
+  });
+
+  if (list.children.length) {
+    list.classList.remove("hidden");
+  }
+}
+
+function renderAddressSearchLoading(input, list, onSelect) {
+  renderAddressSuggestions(input, list, [], onSelect);
+  const searching = document.createElement("button");
+  searching.type = "button";
+  searching.disabled = true;
+  searching.innerHTML = "<span>Searching nearby addresses...</span><small>Ermelo and surrounding areas</small>";
+  list.appendChild(searching);
+  list.classList.remove("hidden");
+}
+
+function setupAddressAutocomplete(input, list, onSelect, onTyping) {
+  let timer;
+  let lastRequest = 0;
+  input.addEventListener("input", () => {
+    onTyping?.();
+    clearTimeout(timer);
+    const requestId = Date.now();
+    lastRequest = requestId;
+    if (input.value.trim().length >= 2) {
+      renderAddressSearchLoading(input, list, onSelect);
+    } else {
+      hideAddressSuggestions(list);
+    }
+    timer = setTimeout(async () => {
+      const results = await searchAddresses(input.value).catch(() => []);
+      if (lastRequest !== requestId) return;
+      renderAddressSuggestions(input, list, results, onSelect);
+    }, 150);
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => hideAddressSuggestions(list), 180);
+  });
 }
 
 function updateAccountMap(query) {
@@ -495,6 +726,18 @@ function updateCheckoutMapSearch() {
   mapSearchLink.href = mapsSearchUrl(`${addressInput.value} ${area} Ermelo Mpumalanga`);
 }
 
+function saveCurrentUserAddress(address, gps = "") {
+  if (!state.currentUser) return;
+  state.currentUser = {
+    ...state.currentUser,
+    address: visibleDeliveryAddress(address, gps) || address,
+    gps: gps || state.currentUser.gps || "",
+  };
+  state.users = state.users.map((user) => (user.id === state.currentUser.id ? state.currentUser : user));
+  saveUsers();
+  saveSession(state.currentUser);
+}
+
 function renderAccount() {
   const user = state.currentUser;
   if (user) {
@@ -503,11 +746,12 @@ function renderAccount() {
     accountSubtitle.textContent = "Your details are saved for faster checkout on this device.";
     accountForm.elements.name.value = user.name || "";
     accountForm.elements.phone.value = user.phone || "";
-    accountForm.elements.address.value = user.address || "";
+    const address = visibleDeliveryAddress(user.address, user.gps);
+    accountForm.elements.address.value = address;
     accountForm.elements.password.value = "";
-    accountAddressInput.value = user.address || "";
+    accountAddressInput.value = address;
     accountGpsInput.value = user.gps || "";
-    updateAccountMap(user.gps || user.address || "Ermelo Mpumalanga");
+    updateAccountMap(user.gps || address || "Ermelo Mpumalanga");
     accountAddressPanel.classList.remove("hidden");
     logoutButton.classList.remove("hidden");
     fillCheckoutFromUser(user);
@@ -524,49 +768,41 @@ function renderAccount() {
 }
 
 function orderMessage(order) {
-  const items = order.items.map((item) => `- ${item.qty} x ${item.name} (${money(item.price * item.qty)})`).join("\n");
   return [
-    `ManjeManje order ${order.id}`,
-    `Vendor: ${order.vendorName}`,
+    `ManjeManje ride request ${order.id}`,
     `Customer: ${order.customerName}`,
     `Phone: ${order.phone}`,
-    `Address: ${order.address}`,
+    `Pickup: ${order.pickup}`,
+    `Destination: ${order.address}`,
     `GPS/Maps: ${mapsDirectionsUrl(deliveryMapTarget(order))}`,
     `Note: ${order.note || "None"}`,
-    `Payment: ${order.payment}`,
-    `Items:`,
-    items,
-    `Total: ${money(order.total)}`,
+    `Ride type: ${order.payment}`,
+    `Estimated total: ${money(order.total)}`,
   ].join("\n");
 }
 
 function createOrder(formData) {
-  const vendor = cartVendor();
   const summary = totals();
   return {
-    id: `MMI-${Date.now().toString().slice(-6)}`,
+    id: `MMR-${Date.now().toString().slice(-6)}`,
     createdAt: new Date().toISOString(),
     status: "New",
-    vendorId: vendor.id,
-    vendorName: vendor.name,
+    vendorId: "manjemanje-rides",
+    vendorName: "ManjeManje Ride",
     customerName: formData.get("customerName").trim(),
     phone: formData.get("phone").trim(),
+    pickup: formData.get("pickup").trim(),
     address: formData.get("address").trim(),
     gps: formData.get("gps").trim(),
     note: formData.get("note").trim(),
     payment: formData.get("payment"),
-    items: [...state.cart.values()].map((item) => ({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      qty: item.qty,
-    })),
+    items: [{ id: "ride", name: `${formData.get("pickup").trim()} to ${formData.get("address").trim()}`, price: summary.total, qty: 1 }],
     subtotal: summary.subtotal,
     delivery: summary.delivery,
     service: summary.service,
     tip: summary.tip,
     total: summary.total,
-    eta: `${vendor.time}-${vendor.time + 10} min`,
+    eta: "Driver will confirm",
   };
 }
 
@@ -600,14 +836,15 @@ function renderOrders() {
     .forEach((order) => {
       const card = document.createElement("article");
       card.className = "order-card";
-      const items = order.items.map((item) => `<li>${item.qty} x ${item.name} - ${money(item.price * item.qty)}</li>`).join("");
+      const items = order.items.map((item) => `<li>${item.name} - ${money(item.price * item.qty)}</li>`).join("");
       card.innerHTML = `
         <div class="order-topline">
           <h3>${order.id} - ${order.vendorName}</h3>
           <span class="status-pill ${statusClass(order.status)}">${order.status}</span>
         </div>
         <p><strong>${order.customerName}</strong> - ${order.phone}</p>
-        <p>${order.address}${order.note ? ` - ${order.note}` : ""}</p>
+        <p><strong>Pickup:</strong> ${order.pickup || "Not saved"}</p>
+        <p><strong>Destination:</strong> ${order.address}${order.note ? ` - ${order.note}` : ""}</p>
         <ul class="order-items">${items}</ul>
         <div class="order-meta">
           <span>${order.payment}</span>
@@ -753,13 +990,17 @@ document.querySelectorAll(".quick-apps button").forEach((button) => {
 document.querySelector("#clearCartButton").addEventListener("click", () => {
   state.cart.clear();
   state.activeVendorId = null;
+  pickupInput.value = "";
+  addressInput.value = "";
+  gpsInput.value = "";
   orderStatus.textContent = "";
   whatsappLink.classList.add("hidden");
   renderCart();
 });
 
 document.querySelector("#startOrderButton").addEventListener("click", () => {
-  document.querySelector(".section-heading").scrollIntoView({ behavior: "smooth" });
+  checkoutForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  pickupInput.focus();
 });
 
 document.querySelector("#locationButton").addEventListener("click", () => {
@@ -836,9 +1077,10 @@ async function handleAccountAction(mode) {
         phone: pendingUser.phone,
         address: pendingUser.address,
         gps: pendingUser.gps,
+        event: "signup",
         createdAt: pendingUser.createdAt,
       });
-      accountStatus.textContent = "Account created. Now add or confirm your delivery address below.";
+      accountStatus.textContent = "Account created. Now add or confirm your pickup address below.";
       otpPanel.classList.add("hidden");
       renderAccount();
       renderCustomers();
@@ -880,7 +1122,7 @@ async function handleAccountAction(mode) {
   state.currentUser = user;
   saveUsers();
   saveSession(user);
-  accountStatus.textContent = "Signed in. Confirm your delivery address below.";
+  accountStatus.textContent = "Signed in. Confirm your pickup address below.";
   renderAccount();
   renderCustomers();
   accountAddressPanel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -928,7 +1170,7 @@ verifyOtpButton.addEventListener("click", async () => {
     saveUsers();
     saveSession(user);
     otpStatus.textContent = "OTP verified. Account created.";
-    accountStatus.textContent = "Account created. Now add or confirm your delivery address below.";
+    accountStatus.textContent = "Account created. Now add or confirm your pickup address below.";
     otpPanel.classList.add("hidden");
     renderAccount();
     renderCustomers();
@@ -970,10 +1212,28 @@ logoutButton.addEventListener("click", () => {
   renderAccount();
 });
 
-accountAddressInput.addEventListener("input", () => {
-  const query = `${accountAddressInput.value} Ermelo Mpumalanga`;
-  updateAccountMap(query);
-});
+setupAddressAutocomplete(
+  accountAddressInput,
+  accountAddressSuggestions,
+  (address, coords) => {
+    accountAddressInput.value = address;
+    accountGpsInput.value = coords;
+    pickupInput.value = address;
+    gpsInput.value = coords;
+    saveCurrentUserAddress(address, coords);
+    document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(address)}`;
+    updateAccountMap(coords);
+    updateCheckoutMapSearch();
+    fillCheckoutFromUser(state.currentUser);
+    renderCustomers();
+    addressStatus.textContent = "Pickup selected and added to your ride details.";
+  },
+  () => {
+    accountGpsInput.value = "";
+    const query = `${accountAddressInput.value} Ermelo Mpumalanga`;
+    updateAccountMap(query);
+  },
+);
 
 accountGpsButton.addEventListener("click", () => {
   if (!navigator.geolocation) {
@@ -983,13 +1243,31 @@ accountGpsButton.addEventListener("click", () => {
 
   addressStatus.textContent = "Getting your location...";
   navigator.geolocation.getCurrentPosition(
-    (position) => {
+    async (position) => {
       const { latitude, longitude } = position.coords;
       const coords = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+      accountAddressInput.value = "Finding nearest street address...";
+      pickupInput.value = "Finding nearest street address...";
+      document.querySelector("#deliveryArea").textContent = "Delivering to current location";
+      let label = "";
+      try {
+        label = await reverseGeocode(latitude, longitude);
+      } catch (error) {
+        label = "";
+      }
+      if (!label) {
+        label = fallbackPinnedAddress();
+      }
       accountGpsInput.value = coords;
-      accountAddressInput.value = accountAddressInput.value || `My Location: ${coords}`;
+      accountAddressInput.value = label;
+      addressInput.value = label;
+      gpsInput.value = coords;
+      pickupInput.value = label;
+      document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(label)}`;
       updateAccountMap(coords);
-      addressStatus.textContent = "Location added. Save it to your profile.";
+      updateCheckoutMapSearch();
+      renderCart();
+      addressStatus.textContent = "Location address added. Save it to your profile.";
     },
     () => {
       addressStatus.textContent = "GPS permission was not allowed. Search your address instead.";
@@ -1010,10 +1288,11 @@ saveAddressButton.addEventListener("click", () => {
     addressStatus.textContent = "Add an address or use My Location before saving.";
     return;
   }
+  const savedAddress = visibleDeliveryAddress(address, gps) || fallbackPinnedAddress();
 
   state.currentUser = {
     ...state.currentUser,
-    address: address || state.currentUser.address,
+    address: savedAddress,
     gps: gps || state.currentUser.gps || "",
   };
   state.users = state.users.map((user) => (user.id === state.currentUser.id ? state.currentUser : user));
@@ -1021,16 +1300,60 @@ saveAddressButton.addEventListener("click", () => {
   saveSession(state.currentUser);
   fillCheckoutFromUser(state.currentUser);
   updateAccountMap(state.currentUser.gps || state.currentUser.address);
-  addressStatus.textContent = "Address saved. You can now order with these delivery details.";
+  addressStatus.textContent = "Pickup saved. You can now request rides with these details.";
   renderCustomers();
-  apiRequest("/api/customers/update", state.currentUser).catch((error) => {
-    addressStatus.textContent = `Address saved locally, but server update failed: ${error.message}`;
+  submitNetlifyForm("manjemanje-signups", {
+    name: state.currentUser.name,
+    phone: state.currentUser.phone,
+    address: state.currentUser.address,
+    gps: state.currentUser.gps,
+    event: "address saved",
+    createdAt: new Date().toISOString(),
+  }).catch(() => {
+    addressStatus.textContent = "Address saved on this device. If you are offline, it may not appear in Netlify yet.";
   });
 });
 
-addressInput.addEventListener("input", () => {
-  updateCheckoutMapSearch();
-});
+setupAddressAutocomplete(
+  pickupInput,
+  pickupAddressSuggestions,
+  (address, coords) => {
+    pickupInput.value = address;
+    gpsInput.value = coords;
+    if (state.currentUser) {
+      accountAddressInput.value = address;
+      accountGpsInput.value = coords;
+      saveCurrentUserAddress(address, coords);
+      renderCustomers();
+    }
+    document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(address)}`;
+    mapSearchLink.href = mapsDirectionsUrl(coords || address);
+    gpsStatus.textContent = "Pickup selected.";
+    renderCart();
+  },
+  () => {
+    gpsInput.value = "";
+    updateCheckoutMapSearch();
+    renderCart();
+  },
+);
+
+setupAddressAutocomplete(
+  addressInput,
+  checkoutAddressSuggestions,
+  (address, coords) => {
+    addressInput.value = address;
+    gpsInput.value = gpsInput.value || coords;
+    document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(address)}`;
+    mapSearchLink.href = mapsDirectionsUrl(coords);
+    gpsStatus.textContent = "Address selected from search.";
+    renderCart();
+  },
+  () => {
+    updateCheckoutMapSearch();
+    renderCart();
+  },
+);
 
 useGpsButton.addEventListener("click", () => {
   if (!navigator.geolocation) {
@@ -1040,13 +1363,26 @@ useGpsButton.addEventListener("click", () => {
 
   gpsStatus.textContent = "Getting your GPS location...";
   navigator.geolocation.getCurrentPosition(
-    (position) => {
+    async (position) => {
       const { latitude, longitude } = position.coords;
       const coords = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+      pickupInput.value = "Finding nearest street address...";
+      document.querySelector("#deliveryArea").textContent = "Delivering to current location";
+      let label = "";
+      try {
+        label = await reverseGeocode(latitude, longitude);
+      } catch (error) {
+        label = "";
+      }
+      if (!label) {
+        label = fallbackPinnedAddress();
+      }
       gpsInput.value = coords;
-      addressInput.value = addressInput.value || `GPS location near Ermelo: ${coords}`;
+      pickupInput.value = label;
+      document.querySelector("#deliveryArea").textContent = `Delivering to ${shortAddress(label)}`;
       mapSearchLink.href = mapsDirectionsUrl(coords);
       gpsStatus.innerHTML = `GPS added. <a href="${mapsDirectionsUrl(coords)}" target="_blank" rel="noreferrer">Open location in Maps</a>.`;
+      renderCart();
     },
     () => {
       gpsStatus.textContent = "GPS permission was not allowed. Type the address or use Search on Maps.";
@@ -1057,14 +1393,17 @@ useGpsButton.addEventListener("click", () => {
 
 checkoutForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (!state.cart.size) return;
   const order = createOrder(new FormData(checkoutForm));
+  if (!order.pickup || !order.address) {
+    orderStatus.textContent = "Add pickup and destination before requesting a ride.";
+    return;
+  }
   if (state.currentUser) {
     state.currentUser = {
       ...state.currentUser,
       name: order.customerName,
       phone: normalisePhone(order.phone),
-      address: order.address,
+      address: order.pickup,
       gps: order.gps || state.currentUser.gps || "",
     };
     state.users = state.users.map((user) => (user.id === state.currentUser.id ? state.currentUser : user));
@@ -1078,50 +1417,72 @@ checkoutForm.addEventListener("submit", (event) => {
     orderId: order.id,
     customerName: order.customerName,
     phone: order.phone,
+    pickup: order.pickup,
     address: order.address,
     vendorName: order.vendorName,
     total: money(order.total),
-    items: order.items.map((item) => `${item.qty} x ${item.name}`).join(", "),
+    items: `${order.pickup} to ${order.address}`,
     createdAt: order.createdAt,
   });
-  orderStatus.textContent = `Order ${order.id} saved. Send it to Siyabonga on WhatsApp so it can be actioned.`;
+  orderStatus.textContent = `Ride request ${order.id} saved. Send it to Siyabonga on WhatsApp so it can be actioned.`;
   whatsappLink.href = whatsAppUrl(orderMessage(order));
   whatsappLink.classList.remove("hidden");
   state.cart.clear();
   state.activeVendorId = null;
+  const savedName = order.customerName;
+  const savedPhone = order.phone;
+  const savedPickup = order.pickup;
   checkoutForm.reset();
+  checkoutForm.elements.customerName.value = savedName;
+  checkoutForm.elements.phone.value = savedPhone;
+  pickupInput.value = savedPickup;
   fillCheckoutFromUser(state.currentUser);
   renderCart();
   renderOrders();
 });
 
-document.querySelector("#adminToggle").addEventListener("click", () => {
-  adminPanel.classList.toggle("hidden");
-  if (!adminPanel.classList.contains("hidden")) {
-    adminPanel.scrollIntoView({ behavior: "smooth" });
+function openStaffDashboard() {
+  const enteredPin = prompt("Enter staff PIN");
+  if (enteredPin !== staffPin) {
+    alert("Incorrect staff PIN.");
+    return;
+  }
+  adminPanel.classList.remove("hidden");
+  adminPanel.scrollIntoView({ behavior: "smooth" });
+}
+
+let staffShortcut = "";
+document.addEventListener("keydown", (event) => {
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.target.matches("input, textarea, select")) return;
+  staffShortcut = `${staffShortcut}${event.key.toLowerCase()}`.slice(-5);
+  if (staffShortcut === "staff") {
+    staffShortcut = "";
+    openStaffDashboard();
   }
 });
 
 document.querySelector("#seedOrderButton").addEventListener("click", () => {
   const demoOrder = {
-    id: `MMI-${Date.now().toString().slice(-6)}`,
+    id: `MMR-${Date.now().toString().slice(-6)}`,
     createdAt: new Date().toISOString(),
     status: "New",
-    vendorId: "wesselton-kitchen",
-    vendorName: "Wesselton Kitchen",
+    vendorId: "manjemanje-rides",
+    vendorName: "ManjeManje Ride",
     customerName: "Demo Customer",
     phone: "072 000 0000",
-    address: "Ermelo CBD taxi rank",
+    pickup: "Ermelo CBD taxi rank",
+    address: "Wesselton, Ermelo",
     gps: "-26.533333,29.983333",
     note: "Call when outside",
-    payment: "Cash",
-    items: [{ id: "wk-1", name: "Loaded Kota", price: 58, qty: 2 }],
-    subtotal: 116,
-    delivery: 18,
-    service: 7,
+    payment: "Standard ride",
+    items: [{ id: "ride", name: "Ermelo CBD taxi rank to Wesselton, Ermelo", price: 40, qty: 1 }],
+    subtotal: 35,
+    delivery: 0,
+    service: 5,
     tip: 0,
-    total: 141,
-    eta: "25-35 min",
+    total: 40,
+    eta: "Driver will confirm",
   };
   state.orders.unshift(demoOrder);
   saveOrders();
